@@ -12,11 +12,22 @@ const hasDefect=p=>['reported','confirmed'].includes(p.condition);
 const label=(p,i)=>p.headsetLabel===null?pad(i+1):p.headsetLabel;
 const swapped=(p,i)=>p.items[5]&&label(p,i)!==pad(i+1);
 const occurrence=(p,i)=>p.reviewed&&(!p.items.every(Boolean)||swapped(p,i)||(p.items[5]&&hasDefect(p)));
-const stats=pas=>({done:pas.filter(p=>p.reviewed).length,ok:pas.filter((p,i)=>p.reviewed&&!occurrence(p,i)).length,issues:pas.filter(occurrence).length});
+const stats=(pas,tickets=[])=>{const open=new Set(tickets.filter(t=>!t.resolvedAt).map(t=>t.pa-1)),issue=(p,i)=>p.reviewed&&(occurrence(p,i)||open.has(i));return {done:pas.filter(p=>p.reviewed).length,ok:pas.filter((p,i)=>p.reviewed&&!issue(p,i)).length,issues:pas.filter(issue).length};};
+function previousDate(date){const d=new Date(date+'T12:00:00Z');d.setUTCDate(d.getUTCDate()-1);return d.toISOString().slice(0,10);}
+function pendingTickets(db,date,index=null){return db.tickets.filter(t=>!t.resolvedAt&&t.date<=date&&(index===null||t.pa===index+1)).slice().sort((a,b)=>a.createdAt.localeCompare(b.createdAt));}
+function yesterdayPA(db,date,index){const sourceDate=previousDate(date),p=db.days[sourceDate]?.pas[index];return p?.reviewed?{sourceDate,pa:p}:null;}
+function copyYesterday(db,date,index,now=new Date().toISOString()){
+const source=yesterdayPA(db,date,index);if(!source)return false;
+if(!db.days[date])db.days[date]=blankDay(db);
+const p=source.pa;
+// Copy the actual equipment state, never yesterday's timestamp or review metadata.
+db.days[date].pas[index]={...blankPA(),items:[...p.items],note:p.note,headsetLabel:p.headsetLabel,condition:p.condition,defect:p.defect,detail:p.detail,copiedFrom:source.sourceDate};
+confirmPA(db,date,index,false,now);return true;
+}
 const validDate=s=>typeof s==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(s)&&!Number.isNaN(Date.parse(s+'T12:00:00Z'))&&new Date(s+'T12:00:00Z').toISOString().slice(0,10)===s;
 const str=(s,max=500)=>typeof s==='string'&&s.length<=max;
 const stamp=s=>s===null||(typeof s==='string'&&Number.isFinite(Date.parse(s)));
-function validPA(p){return !!p&&Array.isArray(p.items)&&p.items.length===6&&p.items.every(x=>typeof x==='boolean')&&typeof p.reviewed==='boolean'&&str(p.note)&&stamp(p.time)&&(p.headsetLabel===null||p.headsetLabel==='unknown'||(typeof p.headsetLabel==='string'&&Array.from({length:48},(_,i)=>pad(i+1)).includes(p.headsetLabel)))&&Object.hasOwn(CONDITIONS,p.condition)&&Object.hasOwn(DEFECTS,p.defect)&&str(p.detail);}
+function validPA(p){return !!p&&Array.isArray(p.items)&&p.items.length===6&&p.items.every(x=>typeof x==='boolean')&&typeof p.reviewed==='boolean'&&str(p.note)&&stamp(p.time)&&(p.headsetLabel===null||p.headsetLabel==='unknown'||(typeof p.headsetLabel==='string'&&Array.from({length:48},(_,i)=>pad(i+1)).includes(p.headsetLabel)))&&Object.hasOwn(CONDITIONS,p.condition)&&Object.hasOwn(DEFECTS,p.defect)&&str(p.detail)&&(p.copiedFrom===undefined||validDate(p.copiedFrom));}
 function validDB(db){return !!db&&db.version===2&&str(db.name,100)&&str(db.sector,100)&&db.days&&typeof db.days==='object'&&!Array.isArray(db.days)&&Object.entries(db.days).every(([date,d])=>validDate(date)&&d&&str(d.name,100)&&str(d.sector,100)&&Array.isArray(d.pas)&&d.pas.length===48&&d.pas.every(validPA))&&Array.isArray(db.tickets)&&new Set(db.tickets.map(t=>t?.id)).size===db.tickets.length&&db.tickets.every(t=>t&&str(t.id,150)&&validDate(t.date)&&Number.isInteger(t.pa)&&t.pa>=1&&t.pa<=48&&['missing','swap','defect'].includes(t.kind)&&str(t.title)&&str(t.detail,1200)&&str(t.fingerprint,1500)&&stamp(t.createdAt)&&t.createdAt!==null&&stamp(t.resolvedAt)&&str(t.resolution)&&(t.itemIndex===undefined||(Number.isInteger(t.itemIndex)&&t.itemIndex>=0&&t.itemIndex<6))&&(t.defectCode===undefined||Object.hasOwn(DEFECTS,t.defectCode))&&(t.original===undefined||validPA(t.original)));}
 function migrate(old){if(!old||!old.days||typeof old.days!=='object'||Array.isArray(old.days))throw Error('Backup inválido');const db=blankDB();db.name=str(old.name,100)?old.name:'';db.sector=str(old.sector,100)?old.sector:'';for(const [date,d] of Object.entries(old.days)){if(!validDate(date)||!d||!str(d.name,100)||!str(d.sector,100)||!['in','out'].every(s=>Array.isArray(d[s])&&d[s].length===48&&d[s].every(p=>p&&Array.isArray(p.items)&&p.items.length===6&&p.items.every(v=>typeof v==='boolean')&&typeof p.reviewed==='boolean'&&str(p.note)&&stamp(p.time))))throw Error('Backup antigo inválido');db.days[date]={name:d.name,sector:d.sector,pas:d.out.map((p,i)=>({...blankPA(),...(p.reviewed||p.items.some(Boolean)||p.note?p:d.in[i]),items:[...(p.reviewed||p.items.some(Boolean)||p.note?p:d.in[i]).items]})),legacy:d};}if(!validDB(db))throw Error('Backup inválido');return db;}
 function importDB(raw){if(raw?.version===2){if(!validDB(raw))throw Error('Backup inválido');return normalize(raw);}return normalize(migrate(raw));}
@@ -56,5 +67,5 @@ const dates=Object.keys(db.days).sort().reverse();for(let i=0;i<48;i++){const da
 db.ticketSyncVersion=3;return db;
 }
 function reportTickets(db,date){return db.tickets.filter(t=>t.date<=date&&(!t.resolvedAt||localDate(new Date(t.resolvedAt))>=date));}
-const api={ITEMS,CONDITIONS,DEFECTS,pad,localDate,blankPA,blankDB,blankDay,hasDefect,label,swapped,occurrence,stats,validDate,validDB,importDB,migrate,normalize,syncTickets,confirmPA,resolveTicket,reportTickets};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.PAModel=api;
+const api={ITEMS,CONDITIONS,DEFECTS,pad,localDate,blankPA,blankDB,blankDay,hasDefect,label,swapped,occurrence,stats,previousDate,pendingTickets,yesterdayPA,copyYesterday,validDate,validDB,importDB,migrate,normalize,syncTickets,confirmPA,resolveTicket,reportTickets};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.PAModel=api;
 })(typeof window!=='undefined'?window:globalThis);

@@ -13,6 +13,13 @@ Checklist pessoal para conferir 48 posições de atendimento no fim do dia. Feit
 7. Em **Ver histórico completo**, consulte descrição original, data, status e solução de todas as ocorrências. Uma nova ausência do mesmo item, mesmo no mesmo dia, cria um novo registro. O PDF inclui as ocorrências abertas na data e as resolvidas nesse dia.
 7. Use **Relatório / PDF**, depois **Imprimir / salvar PDF**. Selecione PDF na impressão do navegador e envie manualmente ao Drive. No iPhone, use o compartilhamento da prévia de impressão.
 
+## Agilizar a ronda
+
+- Cada baia mostra suas pendências abertas e desde quando existem, com acesso direto a **Ver / resolver**.
+- **Copiar de ontem** replica equipamentos, etiqueta, condição do headset e observação do dia anterior e **já registra a conferência da data selecionada**, com o horário do clique. Use depois de conferir a baia na prática.
+- A cópia não duplica ocorrências que continuam abertas. A origem da cópia fica indicada no cartão e no relatório.
+- O botão fica desativado se aquele PA não tiver uma conferência concluída no dia imediatamente anterior; rascunhos e dias mais antigos não são usados.
+
 ## Dados e backup
 
 - Dados ficam no `localStorage` deste navegador e endereço. Não são enviados ao GitHub, Drive nem a outro servidor pela aplicação.
