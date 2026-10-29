@@ -7,7 +7,7 @@ assert.equal(M.stats(db.days[date].pas).done,1);assert.equal(db.days[date].pas[0
 const p=db.days[date].pas[1];p.items.fill(true);p.headsetLabel='15';p.condition='reported';p.defect='mic';p.detail='Falha intermitente';
 M.confirmPA(db,date,1,false,at);assert.equal(M.stats(db.days[date].pas).issues,1);assert.equal(db.tickets.length,2);assert.equal(db.tickets[0].kind,'swap');assert(db.tickets[1].detail.includes('Problema relatado'));
 M.confirmPA(db,date,1,false,at);assert.equal(db.tickets.length,2,'Conferir novamente não duplica ocorrências');
-assert.equal(M.resolveTicket(db,db.tickets[1].id,'',at),false);assert(M.resolveTicket(db,db.tickets[1].id,'USB reconectado e testado',at));assert.equal(p.condition,'reported','Resolver preserva a condição registrada na conferência');
+assert.equal(M.resolveTicket(db,db.tickets[1].id,'',at),false);assert(M.resolveTicket(db,db.tickets[1].id,'USB reconectado e testado',at));assert.equal(p.condition,'ok','Resolver atualiza a condição atual');assert.equal(db.tickets[1].original.condition,'reported','Histórico preserva a condição original');
 M.confirmPA(db,date,1,false,at);assert.equal(db.tickets.length,2,'Atualizar no mesmo dia não reabre a ocorrência resolvida');
 db.days[tomorrow]=M.blankDay(db);const next=db.days[tomorrow].pas[1];next.items.fill(true);next.headsetLabel='15';next.condition='reported';next.defect='mic';next.detail='Falha intermitente';M.confirmPA(db,tomorrow,1,false,'2026-10-30T15:00:00.000Z');assert.equal(db.tickets.length,3,'Problema que voltou em novo dia cria ocorrência, troca ainda aberta é reaproveitada');
 assert.equal(M.reportTickets(db,date).length,2,'Relatório antigo não inclui novas ocorrências futuras');
@@ -15,4 +15,17 @@ M.confirmPA(db,tomorrow,2,false,'2026-10-30T15:00:00.000Z');assert.equal(db.tick
 const restored=M.importDB(JSON.parse(JSON.stringify(db)));assert.deepEqual(restored,db);assert.throws(()=>M.importDB({version:2,days:{}}));
 const oldPA=()=>({items:Array(6).fill(false),reviewed:false,note:'',time:null});const old={name:'Teste',sector:'Setor',days:{[date]:{name:'Teste',sector:'Setor',in:Array.from({length:48},oldPA),out:Array.from({length:48},oldPA)}}};old.days[date].in[0].reviewed=true;old.days[date].in[0].items.fill(true);old.days[date].out[1].reviewed=true;old.days[date].out[1].note='Saída';
 const migrated=M.migrate(old);assert(migrated.days[date].pas[0].reviewed);assert.equal(migrated.days[date].pas[1].note,'Saída');assert.deepEqual(migrated.days[date].legacy,old.days[date]);assert(M.validDB(migrated));assert.equal(M.validDate('2026-02-31'),false);
-console.log('OK: presença sem teste, troca, defeito relatado, deduplicação, solução com histórico, recorrência, pendências entre dias, relatório histórico, backup e migração v1.');
+// Regression: every missing equipment creates its own ticket, and returning one
+// resolves only that absence. A second loss on the same day is a new occurrence.
+const all=M.blankDB();all.days[date]=M.blankDay(all);M.confirmPA(all,date,0,false,at);
+assert.equal(all.tickets.length,6);assert.deepEqual(all.tickets.map(t=>t.itemIndex),[0,1,2,3,4,5]);
+all.days[date].pas[0].items[3]=true;M.syncTickets(all,date,0,at);
+assert.equal(all.tickets.filter(t=>!t.resolvedAt).length,5);assert(all.tickets.find(t=>t.itemIndex===3).resolvedAt);
+M.confirmPA(all,date,0,true,at);assert.equal(all.tickets.filter(t=>!t.resolvedAt).length,0);assert.equal(M.stats(all.days[date].pas).issues,0);
+all.days[date].pas[0].items[3]=false;M.syncTickets(all,date,0,at);assert.equal(all.tickets.length,7);
+assert(M.resolveTicket(all,all.tickets.at(-1).id,'Mouse reposto',at,date));assert.equal(all.days[date].pas[0].items[3],true);assert.equal(M.stats(all.days[date].pas).issues,0);assert.equal(all.tickets.at(-1).original.items[3],false);
+const faults=M.blankDB();faults.days[date]=M.blankDay(faults);const fp=faults.days[date].pas[0];fp.items.fill(true);fp.condition='confirmed';fp.defect='mic';fp.headsetLabel='15';M.confirmPA(faults,date,0,false,at);
+const fault=faults.tickets.find(t=>t.kind==='defect');M.resolveTicket(faults,fault.id,'Microfone reparado',at,date);assert.equal(fp.condition,'ok');assert.equal(M.stats(faults.days[date].pas).issues,1,'Troca independente permanece aberta');M.resolveTicket(faults,faults.tickets.find(t=>t.kind==='swap').id,'Fone devolvido',at,date);assert.equal(M.stats(faults.days[date].pas).issues,0);M.confirmPA(faults,date,0,false,at);assert.equal(faults.tickets.filter(t=>!t.resolvedAt).length,0);
+const oldBug=JSON.parse(JSON.stringify(faults));delete oldBug.ticketSyncVersion;oldBug.days[date].pas[0].condition='confirmed';oldBug.days[date].pas[0].headsetLabel='15';const repaired=M.importDB(oldBug);assert.equal(repaired.days[date].pas[0].condition,'ok');assert.equal(repaired.days[date].pas[0].headsetLabel,null);assert.equal(repaired.tickets.length,2);
+const oldMissing=M.blankDB();oldMissing.days[date]=M.blankDay(oldMissing);oldMissing.days[date].pas[0].items.fill(true);oldMissing.days[date].pas[0].items[5]=false;M.confirmPA(oldMissing,date,0,false,at);oldMissing.days[date].pas[0].items[5]=true;delete oldMissing.ticketSyncVersion;assert(M.importDB(oldMissing).tickets[0].resolvedAt,'Corrige ocorrência antiga de ausência com item já reposto');
+console.log('OK: regressões dos 6 equipamentos, reposição automática, resolução manual, histórico original, recorrência no mesmo dia, defeitos independentes, dados antigos, relatórios e backup.');

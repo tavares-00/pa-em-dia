@@ -8,8 +8,9 @@ Checklist pessoal para conferir 48 posições de atendimento no fim do dia. Feit
 2. Confira os dois monitores, teclado, mouse, mouse pad e headset de cada baia.
 3. Toque em **Tudo presente** quando todos os equipamentos estiverem presentes. Isso não registra teste de funcionamento.
 4. Se faltar algo, marque os itens presentes e toque em **Concluir PA**.
-5. Em **Headset**, registre a etiqueta encontrada e a condição. A etiqueta esperada é o próprio PA. Troca, ausência e defeito geram pendências ao concluir a baia.
-6. Em **Pendências**, registre o que foi feito para resolver. O registro original do checklist é preservado.
+5. Cada equipamento ausente gera uma ocorrência ao concluir a baia. Em **Headset**, registre também a etiqueta encontrada e a condição. A etiqueta esperada é o próprio PA.
+6. Marcar um item como presente encerra automaticamente sua ocorrência de ausência. Em **Ocorrências**, registrar a solução também atualiza o checklist: repõe o item, corrige a etiqueta ou limpa o defeito correspondente. Problemas independentes permanecem abertos.
+7. Em **Ver histórico completo**, consulte descrição original, data, status e solução de todas as ocorrências. Uma nova ausência do mesmo item, mesmo no mesmo dia, cria um novo registro. O PDF inclui as ocorrências abertas na data e as resolvidas nesse dia.
 7. Use **Relatório / PDF**, depois **Imprimir / salvar PDF**. Selecione PDF na impressão do navegador e envie manualmente ao Drive. No iPhone, use o compartilhamento da prévia de impressão.
 
 ## Dados e backup
@@ -20,7 +21,8 @@ Checklist pessoal para conferir 48 posições de atendimento no fim do dia. Feit
 - Antes de trocar de domínio, aparelho ou navegador, baixe um backup JSON e restaure no novo endereço. O PDF é o relatório; o JSON permite restaurar o histórico.
 - Backups da primeira versão são aceitos: prioriza a saída e utiliza a chegada onde a saída não foi preenchida. O original é preservado no backup.
 - A etiqueta `PA XX` informa a baia esperada, não uma identificação única do equipamento.
-- Pendências permanecem abertas até registrar uma solução. Corrigir o checklist não encerra automaticamente uma ocorrência.
+- A reposição de um item encerra automaticamente a ausência; a correção da etiqueta encerra a troca. A presença do headset não encerra um defeito de áudio independente. A resolução manual de um defeito atualiza a condição para "Sem problema observado" e mantém o relato original na ocorrência.
+- A atualização reconcilia registros da versão anterior, incluindo defeitos já resolvidos que continuavam aparecendo no checklist. Os dados e o histórico existentes são mantidos.
 - Não coloque PDFs nem backups preenchidos neste repositório público.
 
 ## Publicar no GitHub Pages
