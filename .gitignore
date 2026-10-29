@@ -1,0 +1,6 @@
+# Registros pessoais nunca devem ir para o repositório
+backup-*.json
+Checklist-PA-*.pdf
+*.zip
+.DS_Store
+Thumbs.db

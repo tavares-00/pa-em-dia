@@ -1,0 +1,18 @@
+const assert=require('node:assert/strict');
+const M=require('./model.js');
+const db=M.blankDB(),date='2026-10-29',tomorrow='2026-10-30',at='2026-10-29T15:00:00.000Z';
+db.days[date]=M.blankDay(db);
+M.confirmPA(db,date,0,true,at);
+assert.equal(M.stats(db.days[date].pas).done,1);assert.equal(db.days[date].pas[0].condition,'untested');assert.equal(db.tickets.length,0);
+const p=db.days[date].pas[1];p.items.fill(true);p.headsetLabel='15';p.condition='reported';p.defect='mic';p.detail='Falha intermitente';
+M.confirmPA(db,date,1,false,at);assert.equal(M.stats(db.days[date].pas).issues,1);assert.equal(db.tickets.length,2);assert.equal(db.tickets[0].kind,'swap');assert(db.tickets[1].detail.includes('Problema relatado'));
+M.confirmPA(db,date,1,false,at);assert.equal(db.tickets.length,2,'Conferir novamente não duplica ocorrências');
+assert.equal(M.resolveTicket(db,db.tickets[1].id,'',at),false);assert(M.resolveTicket(db,db.tickets[1].id,'USB reconectado e testado',at));assert.equal(p.condition,'reported','Resolver preserva a condição registrada na conferência');
+M.confirmPA(db,date,1,false,at);assert.equal(db.tickets.length,2,'Atualizar no mesmo dia não reabre a ocorrência resolvida');
+db.days[tomorrow]=M.blankDay(db);const next=db.days[tomorrow].pas[1];next.items.fill(true);next.headsetLabel='15';next.condition='reported';next.defect='mic';next.detail='Falha intermitente';M.confirmPA(db,tomorrow,1,false,'2026-10-30T15:00:00.000Z');assert.equal(db.tickets.length,3,'Problema que voltou em novo dia cria ocorrência, troca ainda aberta é reaproveitada');
+assert.equal(M.reportTickets(db,date).length,2,'Relatório antigo não inclui novas ocorrências futuras');
+M.confirmPA(db,tomorrow,2,false,'2026-10-30T15:00:00.000Z');assert.equal(db.tickets.at(-1).kind,'missing');assert(M.validDB(db));
+const restored=M.importDB(JSON.parse(JSON.stringify(db)));assert.deepEqual(restored,db);assert.throws(()=>M.importDB({version:2,days:{}}));
+const oldPA=()=>({items:Array(6).fill(false),reviewed:false,note:'',time:null});const old={name:'Teste',sector:'Setor',days:{[date]:{name:'Teste',sector:'Setor',in:Array.from({length:48},oldPA),out:Array.from({length:48},oldPA)}}};old.days[date].in[0].reviewed=true;old.days[date].in[0].items.fill(true);old.days[date].out[1].reviewed=true;old.days[date].out[1].note='Saída';
+const migrated=M.migrate(old);assert(migrated.days[date].pas[0].reviewed);assert.equal(migrated.days[date].pas[1].note,'Saída');assert.deepEqual(migrated.days[date].legacy,old.days[date]);assert(M.validDB(migrated));assert.equal(M.validDate('2026-02-31'),false);
+console.log('OK: presença sem teste, troca, defeito relatado, deduplicação, solução com histórico, recorrência, pendências entre dias, relatório histórico, backup e migração v1.');
